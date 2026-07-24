@@ -23,7 +23,6 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 import logo from '../../assets/hero.png';
-import { seedDefaultAdmin } from '../../services/seedAdmin';
 
 export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
@@ -37,11 +36,6 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname;
-
-  useEffect(() => {
-    // Seed default admin in background without auto-login
-    seedDefaultAdmin().catch(console.error);
-  }, []);
 
   useEffect(() => {
     let timer: any;
