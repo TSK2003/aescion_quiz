@@ -46,27 +46,42 @@ export const RegisterPage: React.FC = () => {
   });
 
   useEffect(() => {
-    const fetchActiveEventAndCourses = async () => {
+    const fetchActiveEventsAndCourses = async () => {
       try {
         const eventsQuery = query(collection(db, 'events'), where('status', '==', 'active'));
         const eventSnap = await getDocs(eventsQuery);
         
         if (!eventSnap.empty) {
-          const activeEvent = eventSnap.docs[0];
-          setActiveEventId(activeEvent.id);
-          console.log("Active event found:", activeEvent.id, activeEvent.data().name);
+          const activeEvents = eventSnap.docs;
+          setActiveEventId(activeEvents[0].id);
 
-          const coursesQuery = query(collection(db, 'courses'), where('eventId', '==', activeEvent.id));
-          const coursesSnap = await getDocs(coursesQuery);
-          setCourses(coursesSnap.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+          const allAvailablePrograms: { id: string, name: string }[] = [];
+
+          for (const eventDoc of activeEvents) {
+            const eventData = eventDoc.data();
+            const coursesQuery = query(collection(db, 'courses'), where('eventId', '==', eventDoc.id));
+            const coursesSnap = await getDocs(coursesQuery);
+            
+            if (!coursesSnap.empty) {
+              coursesSnap.docs.forEach(cDoc => {
+                allAvailablePrograms.push({ id: cDoc.id, name: `${cDoc.data().name} - ${eventData.name}` });
+              });
+            } else {
+              // If no sub-courses exist yet, use the active Event or Interview directly
+              const trackType = eventData.eventType === 'interview' ? 'Interview Session' : 'Assessment Track';
+              allAvailablePrograms.push({ id: eventDoc.id, name: `${eventData.name} (${trackType})` });
+            }
+          }
+
+          setCourses(allAvailablePrograms);
         } else {
           setCourses([]);
         }
       } catch (err) {
-        console.error("Failed to fetch active event or courses", err);
+        console.error("Failed to fetch active events or courses", err);
       }
     };
-    fetchActiveEventAndCourses();
+    fetchActiveEventsAndCourses();
   }, []);
 
   const onSubmit = async (data: RegisterFormValues) => {
@@ -102,16 +117,22 @@ export const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-secondary/30 flex items-center justify-center p-4 py-12">
+    <div className="min-h-screen bg-secondary/30 flex items-center justify-center p-4 py-8">
       <Card className="w-full max-w-lg shadow-xl border-0 ring-1 ring-border/50">
         <CardHeader className="space-y-2 text-center pb-6">
           <div className="mx-auto flex items-center justify-center mb-2">
-            <img src={logo} alt="AESCION Logo" className="h-12 w-auto" />
+            <img src={logo} alt="AESCION Logo" className="h-40 w-40" />
           </div>
           <CardTitle className="text-2xl font-bold">Create an Account</CardTitle>
-          <CardDescription>Register for Assessments</CardDescription>
+          <CardDescription>Register for Assessments & Interviews</CardDescription>
         </CardHeader>
         <CardContent>
+          {error && (
+            <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md flex items-center gap-2 mb-4">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -134,7 +155,7 @@ export const RegisterPage: React.FC = () => {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="courseId">Course</Label>
+              <Label htmlFor="courseId">Program / Specialization Track</Label>
               <div className="relative">
                 <select 
                   id="courseId" 
@@ -142,7 +163,7 @@ export const RegisterPage: React.FC = () => {
                   disabled={courses.length === 0}
                   className={`appearance-none flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-secondary/30 transition-colors cursor-pointer shadow-sm ${errors.courseId ? 'border-destructive' : ''}`}
                 >
-                  <option value="">{courses.length === 0 ? 'No courses available' : 'Select a course'}</option>
+                  <option value="">{courses.length === 0 ? 'No active programs available' : 'Select Program / Specialization Track'}</option>
                   {courses.map(course => (
                     <option key={course.id} value={course.id}>{course.name}</option>
                   ))}
@@ -151,7 +172,7 @@ export const RegisterPage: React.FC = () => {
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
               </div>
-              {courses.length === 0 && <p className="text-xs text-amber-600">No courses found. Please ask the admin to set an event as Active and add courses to it.</p>}
+              {courses.length === 0 && <p className="text-xs text-amber-600">No active programs found. Please ask the administrator to set an event or interview session as Active.</p>}
               {errors.courseId && <p className="text-xs text-destructive">{errors.courseId.message}</p>}
             </div>
 

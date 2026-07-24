@@ -87,23 +87,23 @@ export const CoursesPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Courses</h1>
-        <p className="text-muted-foreground">Manage courses and groups for participants.</p>
+        <h1 className="text-3xl font-bold tracking-tight">Programs & Specialization Tracks</h1>
+        <p className="text-muted-foreground">Manage assessment domains, modules, and specialization tracks for participants.</p>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
         <div className="md:col-span-1">
           <Card>
             <CardHeader>
-              <CardTitle>Create New Course</CardTitle>
+              <CardTitle>Add Program / Track</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleCreateCourse} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="courseName">Course Name</Label>
+                  <Label htmlFor="courseName">Track / Program Name</Label>
                   <Input 
                     id="courseName" 
-                    placeholder="e.g., Python Full Stack" 
+                    placeholder="e.g., Technical Assessment - Batch A" 
                     value={newCourseName}
                     onChange={(e) => setNewCourseName(e.target.value)}
                     required
