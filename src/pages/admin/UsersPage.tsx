@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { db } from '../../config/firebase';
-import { collection, query, where, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -16,6 +16,7 @@ export const UsersPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
   const [searchName, setSearchName] = useState('');
+  const [isInterviewEvent, setIsInterviewEvent] = useState(false);
   const { addToast } = useToastStore();
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
@@ -28,6 +29,14 @@ export const UsersPage: React.FC = () => {
     if (!eventId) return;
     setLoading(true);
     try {
+      // Check if event is interview type
+      const eventSnap = await getDoc(doc(db, 'events', eventId));
+      if (eventSnap.exists() && eventSnap.data().eventType === 'interview') {
+        setIsInterviewEvent(true);
+      } else {
+        setIsInterviewEvent(false);
+      }
+
       const coursesQ = query(collection(db, 'courses'), where('eventId', '==', eventId));
       const coursesSnap = await getDocs(coursesQ);
       const fetchedCourses = coursesSnap.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
@@ -199,7 +208,9 @@ export const UsersPage: React.FC = () => {
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium truncate">{user.name}</p>
-        <p className="text-xs text-muted-foreground truncate">{getCourseName(getUserCourseId(user))}</p>
+        <p className="text-xs text-muted-foreground truncate">
+          {isInterviewEvent ? 'Interview Candidate' : getCourseName(getUserCourseId(user))}
+        </p>
       </div>
     </div>
   );
@@ -213,24 +224,26 @@ export const UsersPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
 
-          <div className="flex items-center gap-2 bg-card p-2 rounded-lg border border-border shadow-sm">
-            <label className="text-sm font-medium text-muted-foreground ml-2">Course:</label>
-            <div className="relative">
-              <select 
-                value={selectedCourse} 
-                onChange={(e) => setSelectedCourse(e.target.value)}
-                className="appearance-none text-sm bg-background border border-border focus:ring-2 focus:ring-primary rounded-md py-2 pl-3 pr-8 cursor-pointer hover:bg-secondary/50 transition-colors shadow-sm outline-none"
-              >
-                <option value="all">All Courses</option>
-                {courses.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+          {!isInterviewEvent && (
+            <div className="flex items-center gap-2 bg-card p-2 rounded-lg border border-border shadow-sm">
+              <label className="text-sm font-medium text-muted-foreground ml-2">Program Track:</label>
+              <div className="relative">
+                <select 
+                  value={selectedCourse} 
+                  onChange={(e) => setSelectedCourse(e.target.value)}
+                  className="appearance-none text-sm bg-background border border-border focus:ring-2 focus:ring-primary rounded-md py-2 pl-3 pr-8 cursor-pointer hover:bg-secondary/50 transition-colors shadow-sm outline-none"
+                >
+                  <option value="all">All Tracks</option>
+                  {courses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -265,7 +278,7 @@ export const UsersPage: React.FC = () => {
                     <th className="px-6 py-4 font-semibold">Name</th>
                     <th className="px-6 py-4 font-semibold">Email</th>
                     <th className="px-6 py-4 font-semibold">Password</th>
-                    <th className="px-6 py-4 font-semibold">Course</th>
+                    <th className="px-6 py-4 font-semibold">{isInterviewEvent ? 'TRACK / TYPE' : 'PROGRAM / TRACK'}</th>
                     <th className="px-6 py-4 font-semibold">Status</th>
                     <th className="px-6 py-4 font-semibold text-right">Actions</th>
                   </tr>
@@ -277,21 +290,27 @@ export const UsersPage: React.FC = () => {
                       <td className="px-6 py-4 text-muted-foreground">{user.email}</td>
                       <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{user.password || 'N/A'}</td>
                       <td className="px-6 py-4">
-                        <div className="relative inline-block w-full">
-                          <select 
-                            value={getUserCourseId(user) || ''}  
-                            onChange={(e) => handleUpdateCourse(user.id, e.target.value)}
-                            className="appearance-none w-full text-xs border border-border rounded-md px-2 py-1.5 bg-background cursor-pointer hover:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors pr-6 shadow-sm"
-                          >
-                            <option value="">No Course</option>
-                            {courses.map(c => (
-                              <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                          </select>
-                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-muted-foreground">
-                            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                        {isInterviewEvent ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+                            Interview Candidate
+                          </span>
+                        ) : (
+                          <div className="relative inline-block w-full">
+                            <select 
+                              value={getUserCourseId(user) || ''}  
+                              onChange={(e) => handleUpdateCourse(user.id, e.target.value)}
+                              className="appearance-none w-full text-xs border border-border rounded-md px-2 py-1.5 bg-background cursor-pointer hover:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors pr-6 shadow-sm"
+                            >
+                              <option value="">Select Track</option>
+                              {courses.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-muted-foreground">
+                              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide border border-1

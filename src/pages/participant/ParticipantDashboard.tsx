@@ -63,6 +63,7 @@ export const ParticipantDashboard: React.FC = () => {
   const [availableQuizzes, setAvailableQuizzes] = useState<any[]>([]);
   const [historyQuizzes, setHistoryQuizzes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isInterviewEvent, setIsInterviewEvent] = useState(false);
   const navigate = useNavigate();
 
   // Attendance state
@@ -73,6 +74,14 @@ export const ParticipantDashboard: React.FC = () => {
     const fetchDashboardData = async () => {
       if (!user?.eventId || !user?.courseId || !user?.uid) return;
       try {
+        // Check if event is an interview type
+        if (user.eventId) {
+          const eventDoc = await getDoc(doc(db, 'events', user.eventId));
+          if (eventDoc.exists() && eventDoc.data().eventType === 'interview') {
+            setIsInterviewEvent(true);
+          }
+        }
+
         const enrollments = user.enrollments || [{ eventId: user.eventId, courseId: user.courseId }];
         
         // Fetch active events to know which quizzes can be started
@@ -436,110 +445,112 @@ export const ParticipantDashboard: React.FC = () => {
       </section>
 
       {/* Attendance Section */}
-      <section className="space-y-4 pt-4 border-t border-border/50">
-        <h2 className="text-xl font-semibold flex items-center gap-2">
-          <ClipboardCheck className="w-5 h-5 text-primary" />
-          Attendance
-        </h2>
+      {!isInterviewEvent && (
+        <section className="space-y-4 pt-4 border-t border-border/50">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <ClipboardCheck className="w-5 h-5 text-primary" />
+            Attendance
+          </h2>
 
-        <Card>
-          <CardContent className="p-6 space-y-6">
-            {/* Check In Button */}
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground mb-1">Mark Your Attendance</p>
-                <p className="text-xs text-muted-foreground">
-                  {hasCheckedInToday
-                    ? 'You have already checked in today. Next check-in available tomorrow.'
-                    : 'Click the button to check in for today.'}
-                </p>
+          <Card>
+            <CardContent className="p-6 space-y-6">
+              {/* Check In Button */}
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground mb-1">Mark Your Attendance</p>
+                  <p className="text-xs text-muted-foreground">
+                    {hasCheckedInToday
+                      ? 'You have already checked in today. Next check-in available tomorrow.'
+                      : 'Click the button to check in for today.'}
+                  </p>
+                </div>
+                <button
+                  id="attendance-checkin-btn"
+                  onClick={handleCheckIn}
+                  disabled={hasCheckedInToday || isCheckingIn}
+                  className={`
+                    flex items-center gap-2 px-6 py-3 rounded-full text-sm font-bold text-white
+                    shadow-lg transition-all duration-300 transform
+                    ${hasCheckedInToday
+                      ? 'bg-red-500 cursor-not-allowed opacity-90 shadow-red-500/25'
+                      : 'bg-green-500 hover:bg-green-600 hover:shadow-green-500/40 hover:scale-105 active:scale-95 shadow-green-500/30 cursor-pointer'
+                    }
+                    disabled:hover:scale-100
+                  `}
+                >
+                  {hasCheckedInToday ? (
+                    <>
+                      <XCircle className="w-5 h-5" />
+                      Checked In
+                    </>
+                  ) : isCheckingIn ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Checking In...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-5 h-5" />
+                      Check In
+                    </>
+                  )}
+                </button>
               </div>
-              <button
-                id="attendance-checkin-btn"
-                onClick={handleCheckIn}
-                disabled={hasCheckedInToday || isCheckingIn}
-                className={`
-                  flex items-center gap-2 px-6 py-3 rounded-full text-sm font-bold text-white
-                  shadow-lg transition-all duration-300 transform
-                  ${hasCheckedInToday
-                    ? 'bg-red-500 cursor-not-allowed opacity-90 shadow-red-500/25'
-                    : 'bg-green-500 hover:bg-green-600 hover:shadow-green-500/40 hover:scale-105 active:scale-95 shadow-green-500/30 cursor-pointer'
-                  }
-                  disabled:hover:scale-100
-                `}
-              >
-                {hasCheckedInToday ? (
-                  <>
-                    <XCircle className="w-5 h-5" />
-                    Checked In
-                  </>
-                ) : isCheckingIn ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    Checking In...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-5 h-5" />
-                    Check In
-                  </>
-                )}
-              </button>
-            </div>
 
-            {/* Attendance History Table */}
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                <CalendarCheck className="w-4 h-4 text-primary" />
-                Check-In History
-              </h3>
-              {checkInRecords.length > 0 ? (
-                <div className="overflow-x-auto rounded-lg border border-border">
-                  <table className="w-full text-sm text-left">
-                    <thead className="text-xs uppercase bg-muted text-muted-foreground">
-                      <tr>
-                        <th className="px-6 py-3 font-semibold">Date</th>
-                        <th className="px-6 py-3 font-semibold">Status</th>
-                        <th className="px-6 py-3 font-semibold">Timestamp</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {checkInRecords.map((record) => (
-                        <tr key={record.id} className="border-b border-border hover:bg-muted/50 transition-colors">
-                          <td className="px-6 py-4 font-medium">
-                            <div className="flex items-center gap-2">
-                              <CalendarCheck className="w-3.5 h-3.5 text-primary" />
-                              {formatDateOnly(record.timestamp)}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                              {record.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <Clock className="w-3.5 h-3.5" />
-                              {formatTimestamp(record.timestamp)}
-                            </div>
-                          </td>
+              {/* Attendance History Table */}
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <CalendarCheck className="w-4 h-4 text-primary" />
+                  Check-In History
+                </h3>
+                {checkInRecords.length > 0 ? (
+                  <div className="overflow-x-auto rounded-lg border border-border">
+                    <table className="w-full text-sm text-left">
+                      <thead className="text-xs uppercase bg-muted text-muted-foreground">
+                        <tr>
+                          <th className="px-6 py-3 font-semibold">Date</th>
+                          <th className="px-6 py-3 font-semibold">Status</th>
+                          <th className="px-6 py-3 font-semibold">Timestamp</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="p-8 text-center text-muted-foreground border rounded-xl border-dashed bg-muted/10">
-                  <ClipboardCheck className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
-                  <p className="font-medium">No attendance records yet</p>
-                  <p className="text-xs mt-1">Your daily check-in history will appear here.</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+                      </thead>
+                      <tbody>
+                        {checkInRecords.map((record) => (
+                          <tr key={record.id} className="border-b border-border hover:bg-muted/50 transition-colors">
+                            <td className="px-6 py-4 font-medium">
+                              <div className="flex items-center gap-2">
+                                <CalendarCheck className="w-3.5 h-3.5 text-primary" />
+                                {formatDateOnly(record.timestamp)}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                {record.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-3.5 h-3.5" />
+                                {formatTimestamp(record.timestamp)}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-muted-foreground border rounded-xl border-dashed bg-muted/10">
+                    <ClipboardCheck className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
+                    <p className="font-medium">No attendance records yet</p>
+                    <p className="text-xs mt-1">Your daily check-in history will appear here.</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
     </div>
   );
