@@ -141,10 +141,12 @@ export const LoginPage: React.FC = () => {
         setError(`Security Alert: Maximum failed login attempts reached (5/5). Login locked for 60 seconds.`);
       } else {
         const remaining = MAX_ATTEMPTS - nextAttempts;
-        if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-          setError(`Invalid credentials. ${remaining} of ${MAX_ATTEMPTS} attempts remaining.`);
+        if (err.code === 'permission-denied' || err.message?.includes('permission')) {
+          setError(`Database Permission Notice: Please click the blue 'Publish' button in Firebase Console -> Firestore Rules. (${remaining} attempts remaining)`);
+        } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+          setError(`Invalid Email or Password. Super Admin Email is contact.aescion@gmail.com (${remaining} attempts remaining).`);
         } else {
-          setError(`${err.message || 'Failed to login'}. ${remaining} of ${MAX_ATTEMPTS} attempts remaining.`);
+          setError(`${err.message || 'Invalid credentials'}. (${remaining} attempts remaining).`);
         }
       }
     } finally {
@@ -169,7 +171,7 @@ export const LoginPage: React.FC = () => {
               <Input
                 id="email"
                 type="email"
-                placeholder="name@example.com"
+                placeholder="contact.aescion@gmail.com"
                 disabled={lockoutSeconds > 0}
                 {...register('email')}
                 className={errors.email ? 'border-destructive focus-visible:ring-destructive' : ''}
