@@ -59,7 +59,7 @@ export const EventAdminLayout: React.FC = () => {
   const navItems = [
     { name: eventType === 'interview' ? 'Interview Overview' : 'Event Overview', path: `/admin/events/${eventId}/dashboard`, icon: LayoutDashboard },
     { name: 'Users & Approvals', path: `/admin/events/${eventId}/users`, icon: Users },
-    { name: 'Courses', path: `/admin/events/${eventId}/courses`, icon: BookOpen },
+    ...(eventType !== 'interview' ? [{ name: 'Courses', path: `/admin/events/${eventId}/courses`, icon: BookOpen }] : []),
     { name: 'Quizzes', path: `/admin/events/${eventId}/quizzes`, icon: PenTool },
     { name: 'Audit Logs', path: `/admin/events/${eventId}/audit-logs`, icon: ShieldAlert },
     ...(eventType !== 'interview' ? [{ name: 'Participants Attendance', path: `/admin/events/${eventId}/attendance`, icon: ClipboardCheck }] : []),
