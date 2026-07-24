@@ -24,6 +24,7 @@ export const AdminLayout: React.FC = () => {
   }, [user, navigate]);
 
   const handleLogout = async () => {
+    localStorage.clear();
     sessionStorage.clear();
     await signOut(auth);
     navigate('/login');

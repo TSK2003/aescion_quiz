@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { signInWithEmailAndPassword, signOut, setPersistence, inMemoryPersistence, sendPasswordResetEmail } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db } from '../../config/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
@@ -95,7 +95,7 @@ export const LoginPage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      await setPersistence(auth, inMemoryPersistence);
+      await setPersistence(auth, browserLocalPersistence);
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
       
@@ -113,6 +113,7 @@ export const LoginPage: React.FC = () => {
       }
 
       if (userDoc.exists()) {
+        localStorage.setItem('aescion_active_session', 'true');
         sessionStorage.setItem('aescion_active_session', 'true');
         setFailedAttempts(0);
         const userData = userDoc.data();
@@ -122,6 +123,7 @@ export const LoginPage: React.FC = () => {
           navigate(from && from.startsWith('/participant') ? from : '/participant/dashboard');
         }
       } else {
+        localStorage.removeItem('aescion_active_session');
         sessionStorage.removeItem('aescion_active_session');
         await signOut(auth);
         setError('Your account has been removed by the administrator. Please contact support.');
