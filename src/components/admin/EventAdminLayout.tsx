@@ -17,6 +17,7 @@ export const EventAdminLayout: React.FC = () => {
   const location = useLocation();
   const { eventId } = useParams<{ eventId: string }>();
   const [eventName, setEventName] = useState<string>('Loading Event...');
+  const [eventType, setEventType] = useState<string>('assessment');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -31,7 +32,9 @@ export const EventAdminLayout: React.FC = () => {
       try {
         const docSnap = await getDoc(doc(db, 'events', eventId));
         if (docSnap.exists()) {
-          setEventName(docSnap.data().name);
+          const data = docSnap.data();
+          setEventName(data.name);
+          setEventType(data.eventType || 'assessment');
         } else {
           setEventName('Event Not Found');
         }
@@ -54,12 +57,12 @@ export const EventAdminLayout: React.FC = () => {
   };
 
   const navItems = [
-    { name: 'Event Overview', path: `/admin/events/${eventId}/dashboard`, icon: LayoutDashboard },
+    { name: eventType === 'interview' ? 'Interview Overview' : 'Event Overview', path: `/admin/events/${eventId}/dashboard`, icon: LayoutDashboard },
     { name: 'Users & Approvals', path: `/admin/events/${eventId}/users`, icon: Users },
     { name: 'Courses', path: `/admin/events/${eventId}/courses`, icon: BookOpen },
     { name: 'Quizzes', path: `/admin/events/${eventId}/quizzes`, icon: PenTool },
     { name: 'Audit Logs', path: `/admin/events/${eventId}/audit-logs`, icon: ShieldAlert },
-    { name: 'Participants Attendance', path: `/admin/events/${eventId}/attendance`, icon: ClipboardCheck },
+    ...(eventType !== 'interview' ? [{ name: 'Participants Attendance', path: `/admin/events/${eventId}/attendance`, icon: ClipboardCheck }] : []),
   ];
 
   return (

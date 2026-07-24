@@ -57,7 +57,8 @@ export const EventsPage: React.FC = () => {
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEventName.trim() || !newEventDays.trim()) return;
+    if (!newEventName.trim()) return;
+    if (eventType === 'assessment' && !newEventDays.trim()) return;
 
     const trimmedName = newEventName.trim();
     const isDuplicate = events.some(
@@ -68,29 +69,26 @@ export const EventsPage: React.FC = () => {
       addToast("An event with this name already exists.", "error");
       return;
     }
-    
-    const startTime = `${startHour}:${startMinute} ${startAmPm}`;
-    const endTime = `${endHour}:${endMinute} ${endAmPm}`;
 
     setIsCreating(true);
     try {
-      const docRef = await addDoc(collection(db, 'events'), {
+      const eventData: any = {
         name: trimmedName,
         eventType,
-        days: newEventDays.trim(),
-        startTime,
-        endTime,
         createdAt: serverTimestamp(),
         status: 'inactive'
-      });
+      };
+
+      if (eventType === 'assessment') {
+        eventData.days = newEventDays.trim();
+        eventData.startTime = `${startHour}:${startMinute} ${startAmPm}`;
+        eventData.endTime = `${endHour}:${endMinute} ${endAmPm}`;
+      }
+
+      const docRef = await addDoc(collection(db, 'events'), eventData);
       setEvents([...events, { 
         id: docRef.id, 
-        name: trimmedName,
-        eventType, 
-        days: newEventDays.trim(),
-        startTime,
-        endTime,
-        status: 'inactive' 
+        ...eventData
       }]);
       setNewEventName('');
       setNewEventDays('');
@@ -107,7 +105,6 @@ export const EventsPage: React.FC = () => {
     try {
       const batch = writeBatch(db);
       
-      // Set all currently active events to inactive
       const activeEventsQuery = query(collection(db, 'events'), where('status', '==', 'active'));
       const activeSnap = await getDocs(activeEventsQuery);
       
@@ -117,12 +114,10 @@ export const EventsPage: React.FC = () => {
         }
       });
       
-      // Set the target event to active
       batch.update(doc(db, 'events', eventId), { status: 'active' });
       
       await batch.commit();
       
-      // Update local state
       setEvents(events.map(event => ({
         ...event,
         status: event.id === eventId ? 'active' : 'inactive'
@@ -225,13 +220,13 @@ export const EventsPage: React.FC = () => {
               </div>
               <CardTitle className="text-xl">{event.name}</CardTitle>
               <CardDescription className="flex flex-col gap-1 mt-1">
-                {event.days && (
+                {!isInterview && event.days && (
                   <div className="flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     Duration: {event.days}
                   </div>
                 )}
-                {event.startTime && event.endTime && (
+                {!isInterview && event.startTime && event.endTime && (
                   <div className="flex items-center gap-1 text-xs">
                     <Clock className="w-3 h-3" />
                     {event.startTime} - {event.endTime}
@@ -267,7 +262,7 @@ export const EventsPage: React.FC = () => {
               <label className="text-sm font-semibold text-foreground">Name</label>
               <Input 
                 type="text" 
-                placeholder="e.g. Spring Campus Hiring 2026"
+                placeholder={eventType === 'interview' ? 'e.g. Internship Batch - 2' : 'e.g. Spring Campus Hiring 2026'}
                 value={newEventName}
                 onChange={(e) => setNewEventName(e.target.value)}
                 required
@@ -286,40 +281,44 @@ export const EventsPage: React.FC = () => {
               </select>
             </div>
 
-            <div className="flex-1 space-y-2 min-w-[120px]">
-              <label className="text-sm font-semibold text-foreground">Duration</label>
-              <Input 
-                type="text" 
-                placeholder="e.g. 15 days"
-                value={newEventDays}
-                onChange={(e) => setNewEventDays(e.target.value)}
-                required
-              />
-            </div>
-            
-            <div className="flex-1 space-y-2 min-w-[180px]">
-              <label className="text-sm font-semibold text-foreground">Start Time</label>
-              <TimePicker
-                hour={startHour}
-                minute={startMinute}
-                amPm={startAmPm}
-                onHourChange={setStartHour}
-                onMinuteChange={setStartMinute}
-                onAmPmChange={setStartAmPm}
-              />
-            </div>
-            
-            <div className="flex-1 space-y-2 min-w-[180px]">
-              <label className="text-sm font-semibold text-foreground">End Time</label>
-              <TimePicker
-                hour={endHour}
-                minute={endMinute}
-                amPm={endAmPm}
-                onHourChange={setEndHour}
-                onMinuteChange={setEndMinute}
-                onAmPmChange={setEndAmPm}
-              />
-            </div>
+            {eventType === 'assessment' && (
+              <>
+                <div className="flex-1 space-y-2 min-w-[120px]">
+                  <label className="text-sm font-semibold text-foreground">Duration</label>
+                  <Input 
+                    type="text" 
+                    placeholder="e.g. 15 days"
+                    value={newEventDays}
+                    onChange={(e) => setNewEventDays(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <div className="flex-1 space-y-2 min-w-[180px]">
+                  <label className="text-sm font-semibold text-foreground">Start Time</label>
+                  <TimePicker
+                    hour={startHour}
+                    minute={startMinute}
+                    amPm={startAmPm}
+                    onHourChange={setStartHour}
+                    onMinuteChange={setStartMinute}
+                    onAmPmChange={setStartAmPm}
+                  />
+                </div>
+                
+                <div className="flex-1 space-y-2 min-w-[180px]">
+                  <label className="text-sm font-semibold text-foreground">End Time</label>
+                  <TimePicker
+                    hour={endHour}
+                    minute={endMinute}
+                    amPm={endAmPm}
+                    onHourChange={setEndHour}
+                    onMinuteChange={setEndMinute}
+                    onAmPmChange={setEndAmPm}
+                  />
+                </div>
+              </>
+            )}
             
             <Button type="submit" isLoading={isCreating} className="gap-2 shrink-0 h-10 whitespace-nowrap px-6">
               <Plus className="w-4 h-4" />
