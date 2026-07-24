@@ -3,8 +3,8 @@ import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 export const seedDefaultAdmin = async () => {
-  const adminEmail = "admin_aescion@aescion.com";
-  const adminPassword = "AescionAdmin#@123";
+  const adminEmail = "contact.aescion@gmail.com";
+  const adminPassword = "Aescion#@2025";
 
   try {
     // Attempt to create default admin account if it doesn't exist
@@ -25,7 +25,7 @@ export const seedDefaultAdmin = async () => {
       });
     }
 
-    // Immediately sign out so no persistent session is automatically logged in
+    // Immediately sign out so no session remains active
     await signOut(auth);
   } catch (e: any) {
     if (e.code === 'auth/email-already-in-use') {
