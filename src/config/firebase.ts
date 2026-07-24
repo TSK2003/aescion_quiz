@@ -3,12 +3,12 @@ import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth"
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDummyKeyPlaceholder",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "aescion-quiz-placeholder.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "aescion-quiz-placeholder",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "aescion-quiz-placeholder.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1234567890",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1234567890:web:abcdef123456"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "aescion-quiz.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "aescion-quiz",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "aescion-quiz.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1027675619694",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1027675619694:web:3daa28f6a0041ee416c17f"
 };
 
 const app = initializeApp(firebaseConfig);
