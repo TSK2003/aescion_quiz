@@ -1,5 +1,5 @@
 import { auth, db } from '../config/firebase';
-import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 export const seedDefaultAdmin = async () => {
@@ -7,31 +7,49 @@ export const seedDefaultAdmin = async () => {
   const adminPassword = "Aescion#@2025";
 
   try {
-    // Attempt to create default admin account if it doesn't exist
-    const userCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword);
-    const user = userCredential.user;
-
-    // Create Firestore document for default admin
-    const userDocRef = doc(db, 'users', user.uid);
-    const userDoc = await getDoc(userDocRef);
-    if (!userDoc.exists()) {
-      await setDoc(userDocRef, {
-        uid: user.uid,
-        name: "Super Admin",
-        email: adminEmail,
-        role: "admin",
-        status: "approved",
-        createdAt: new Date().toISOString()
-      });
+    let user;
+    try {
+      // 1. Attempt to sign in to check if auth exists with expected password
+      const userCredential = await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+      user = userCredential.user;
+    } catch (signInErr: any) {
+      if (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential') {
+        try {
+          // 2. Create default admin if account does not exist yet
+          const createCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword);
+          user = createCredential.user;
+        } catch (createErr: any) {
+          if (createErr.code === 'auth/email-already-in-use') {
+            console.log("Admin email already exists in Firebase Auth.");
+          } else {
+            console.error("Error creating admin account:", createErr);
+          }
+        }
+      } else {
+        console.error("Sign-in check notice:", signInErr);
+      }
     }
 
-    // Immediately sign out so no session remains active
+    // 3. Ensure Firestore user document is created for the admin
+    if (user) {
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      if (!userDoc.exists()) {
+        await setDoc(userDocRef, {
+          uid: user.uid,
+          name: "Super Admin",
+          email: adminEmail,
+          role: "admin",
+          status: "approved",
+          createdAt: new Date().toISOString()
+        });
+        console.log("Super Admin Firestore document created successfully.");
+      }
+    }
+
+    // 4. Always sign out so no persistent session is automatically logged in
     await signOut(auth);
   } catch (e: any) {
-    if (e.code === 'auth/email-already-in-use') {
-      // Account exists already; do not log in automatically
-    } else {
-      console.error("Error seeding default admin:", e);
-    }
+    console.error("Error seeding default admin:", e);
   }
 };

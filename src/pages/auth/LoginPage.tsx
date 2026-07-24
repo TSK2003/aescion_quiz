@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { signInWithEmailAndPassword, signOut, setPersistence, inMemoryPersistence, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db } from '../../config/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useToastStore } from '../../store/useToastStore';
 import { Button } from '../../components/ui/Button';
@@ -105,7 +105,19 @@ export const LoginPage: React.FC = () => {
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
       
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      let userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists() && user.email === 'contact.aescion@gmail.com') {
+        await setDoc(doc(db, 'users', user.uid), {
+          uid: user.uid,
+          name: "Super Admin",
+          email: user.email,
+          role: "admin",
+          status: "approved",
+          createdAt: new Date().toISOString()
+        });
+        userDoc = await getDoc(doc(db, 'users', user.uid));
+      }
+
       if (userDoc.exists()) {
         sessionStorage.setItem('aescion_active_session', 'true');
         setFailedAttempts(0);
