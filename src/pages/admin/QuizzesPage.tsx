@@ -3,9 +3,12 @@ import { db } from '../../config/firebase';
 import { collection, query, getDocs, doc, getDoc, deleteDoc, updateDoc, addDoc, where, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Label } from '../../components/ui/Label';
 import { Link, useParams } from 'react-router-dom';
 import { useToastStore } from '../../store/useToastStore';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
+import { Clock, Edit3, X, Check } from 'lucide-react';
 
 export const QuizzesPage: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -14,6 +17,12 @@ export const QuizzesPage: React.FC = () => {
   const [startingQuiz, setStartingQuiz] = useState<string | null>(null);
   const { addToast } = useToastStore();
   const [quizToDelete, setQuizToDelete] = useState<string | null>(null);
+
+  // Edit Timers Modal State
+  const [editingQuiz, setEditingQuiz] = useState<any | null>(null);
+  const [editQuestionTimer, setEditQuestionTimer] = useState<number>(30);
+  const [editDuration, setEditDuration] = useState<number>(30);
+  const [savingTimer, setSavingTimer] = useState(false);
 
   const fetchQuizzes = async () => {
     if (!eventId) return;
@@ -45,6 +54,43 @@ export const QuizzesPage: React.FC = () => {
       addToast("Failed to delete quiz", 'error');
     } finally {
       setQuizToDelete(null);
+    }
+  };
+
+  const handleOpenEditTimer = (quiz: any) => {
+    setEditingQuiz(quiz);
+    setEditQuestionTimer(quiz.questionTimer || 30);
+    setEditDuration(quiz.duration || 30);
+  };
+
+  const handleSaveTimer = async () => {
+    if (!editingQuiz) return;
+    setSavingTimer(true);
+    try {
+      const updatedAt = new Date().toISOString();
+      const newQuestionTimer = Number(editQuestionTimer) || 30;
+      const newDuration = Number(editDuration) || 30;
+
+      await updateDoc(doc(db, 'quizzes', editingQuiz.id), {
+        questionTimer: newQuestionTimer,
+        duration: newDuration,
+        updatedAt
+      });
+
+      setQuizzes(quizzes.map(q => q.id === editingQuiz.id ? { 
+        ...q, 
+        questionTimer: newQuestionTimer, 
+        duration: newDuration, 
+        updatedAt 
+      } : q));
+
+      addToast("Quiz timers updated successfully!", 'success');
+      setEditingQuiz(null);
+    } catch (error) {
+      console.error("Error saving timer", error);
+      addToast("Failed to update quiz timers.", 'error');
+    } finally {
+      setSavingTimer(false);
     }
   };
 
@@ -104,18 +150,16 @@ export const QuizzesPage: React.FC = () => {
       let assignedCount = 0;
       let skippedCount = 0;
 
-      approvedUsers.forEach(u => {
-        const userSet = u.questionSet; // 'A' or 'B'
-        if (!userSet) {
-          skippedCount++;
-          return;
-        }
-
+      approvedUsers.forEach((userItem, idx) => {
+        const userSet = idx % 2 === 0 ? 'A' : 'B';
         const qSetDocId = userSet === 'A' ? setA_Id : setB_Id;
-        const participantRef = doc(db, 'participants', `${quiz.id}_${u.id}`);
+        const participantRef = doc(db, 'participants', `${quiz.id}_${userItem.id}`);
 
         batch.set(participantRef, {
-          userId: u.id,
+          userId: userItem.id,
+          userName: userItem.name,
+          userEmail: userItem.email,
+          courseId: userItem.courseId || '',
           quizId: quiz.id,
           eventId: eventId,
           questionSetId: userSet,
@@ -146,7 +190,7 @@ export const QuizzesPage: React.FC = () => {
       setQuizzes(quizzes.map(q => q.id === quiz.id ? { ...q, status: 'active', updatedAt } : q));
 
       if (skippedCount > 0) {
-        addToast(`Quiz started! ${assignedCount} participants assigned. ${skippedCount} users skipped (no A/B set assigned).`, 'warning');
+        addToast(`Quiz started! ${assignedCount} participants assigned. ${skippedCount} users skipped.`, 'warning');
       } else {
         addToast(`Quiz started! ${assignedCount} participants assigned successfully.`, 'success');
       }
@@ -181,7 +225,7 @@ export const QuizzesPage: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Quizzes</h1>
-          <p className="text-muted-foreground">Manage your assessments, start/stop them, and manage question sets.</p>
+          <p className="text-muted-foreground">Manage your assessments, edit timers, and start/stop live sessions.</p>
         </div>
 
         <Link to={`/admin/events/${eventId}/quizzes/create`}>
@@ -192,7 +236,7 @@ export const QuizzesPage: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>All Quizzes</CardTitle>
-          <CardDescription>Overview of all quizzes across your courses.</CardDescription>
+          <CardDescription>Overview of all quizzes with custom per-question & total timers.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -203,9 +247,8 @@ export const QuizzesPage: React.FC = () => {
                 <thead className="text-xs uppercase bg-muted text-muted-foreground">
                   <tr>
                     <th className="px-6 py-3">Quiz Name</th>
-                    <th className="px-6 py-3">Course</th>
                     <th className="px-6 py-3">Questions</th>
-                    <th className="px-6 py-3">Duration</th>
+                    <th className="px-6 py-3">Timers</th>
                     <th className="px-6 py-3">Status</th>
                     <th className="px-6 py-3 text-right">Actions</th>
                   </tr>
@@ -213,34 +256,57 @@ export const QuizzesPage: React.FC = () => {
                 <tbody>
                   {quizzes.map(quiz => (
                     <tr key={quiz.id} className="border-b border-border hover:bg-muted/50">
-                      <td className="px-6 py-4 font-medium">{quiz.name}</td>
-                      <td className="px-6 py-4">{quiz.courseName || quiz.courseId}</td>
-                      <td className="px-6 py-4">{quiz.totalQuestions}</td>
+                      <td className="px-6 py-4 font-medium">
+                        <div>{quiz.name}</div>
+                        <div className="text-xs text-muted-foreground">{quiz.courseName || 'General Session'}</div>
+                      </td>
+                      <td className="px-6 py-4">{quiz.totalQuestions} Questions</td>
                       <td className="px-6 py-4">
-                        <div className="font-medium">{quiz.duration} mins</div>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <span className="font-semibold text-primary">{quiz.questionTimer || 30}s</span> per question
+                            <div className="text-xs text-muted-foreground">{quiz.duration || 30} mins total</div>
+                          </div>
+                          <button 
+                            onClick={() => handleOpenEditTimer(quiz)}
+                            className="p-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                            title="Edit Timers"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                        </div>
                         {quiz.status === 'active' && quiz.updatedAt && (
                           <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
                             <div>Started: <span className="text-foreground font-medium">{formatTime(quiz.updatedAt)}</span></div>
-                            <div>Est. End: <span className="text-foreground font-medium">{formatTime(new Date(new Date(quiz.updatedAt).getTime() + (quiz.duration * 60000)).toISOString())}</span></div>
+                            <div>Est. End: <span className="text-foreground font-medium">{formatTime(new Date(new Date(quiz.updatedAt).getTime() + ((quiz.duration || 30) * 60000)).toISOString())}</span></div>
                           </div>
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold
-                          ${quiz.status === 'active' ? 'bg-green-100 text-green-700' : 
-                            quiz.status === 'draft' ? 'bg-amber-100 text-amber-700' : 
-                            'bg-gray-100 text-gray-700'}`}>
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold
+                          ${quiz.status === 'active' ? 'bg-green-100 text-green-700 border border-green-200' : 
+                            quiz.status === 'draft' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 
+                            'bg-gray-100 text-gray-700 border border-gray-200'}`}>
                           {quiz.status.toUpperCase()}
                         </span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap items-center justify-end gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => handleOpenEditTimer(quiz)}
+                            className="cursor-pointer"
+                          >
+                            <Clock className="w-3.5 h-3.5 mr-1" />
+                            Timer
+                          </Button>
                           {quiz.status === 'draft' && (
                             <Button 
                               size="sm" 
                               onClick={() => handleStartQuiz(quiz)} 
                               isLoading={startingQuiz === quiz.id}
-                              className="bg-green-600 hover:bg-green-700 cursor-pointer"
+                              className="bg-green-600 hover:bg-green-700 cursor-pointer text-white"
                             >
                               Start Quiz
                             </Button>
@@ -260,7 +326,7 @@ export const QuizzesPage: React.FC = () => {
                   ))}
                   {quizzes.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">No quizzes found. Create one to get started.</td>
+                      <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">No quizzes found. Create one to get started.</td>
                     </tr>
                   )}
                 </tbody>
@@ -269,6 +335,72 @@ export const QuizzesPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Timer Modal */}
+      {editingQuiz && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-md p-6 space-y-6 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center border-b border-border pb-4">
+              <div>
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-primary" />
+                  Edit Quiz Timers
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{editingQuiz.name}</p>
+              </div>
+              <button 
+                onClick={() => setEditingQuiz(null)}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="modalQuestionTimer">Per-Question Time Limit</Label>
+                <select
+                  id="modalQuestionTimer"
+                  value={editQuestionTimer}
+                  onChange={(e) => setEditQuestionTimer(Number(e.target.value))}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
+                >
+                  <option value={15}>15 Seconds per question</option>
+                  <option value={30}>30 Seconds per question</option>
+                  <option value={45}>45 Seconds per question</option>
+                  <option value={60}>60 Seconds per question (1 min)</option>
+                  <option value={90}>90 Seconds per question (1.5 min)</option>
+                  <option value={120}>120 Seconds per question (2 min)</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="modalDuration">Total Quiz Duration (Minutes)</Label>
+                <Input
+                  id="modalDuration"
+                  type="number"
+                  min={5}
+                  max={180}
+                  value={editDuration}
+                  onChange={(e) => setEditDuration(Number(e.target.value))}
+                  placeholder="30"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-border">
+              <Button variant="outline" onClick={() => setEditingQuiz(null)} disabled={savingTimer}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveTimer} isLoading={savingTimer} className="bg-primary text-primary-foreground">
+                <Check className="w-4 h-4 mr-1.5" />
+                Save Timers
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ConfirmModal
         isOpen={!!quizToDelete}

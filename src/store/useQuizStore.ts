@@ -16,10 +16,11 @@ interface QuizState {
   currentQuestionIndex: number;
   answers: Record<string, string>;
   timeLeft: number;
+  perQuestionTimer: number;
   globalTimeLeft: number;
   totalTime: number;
   isSubmitting: boolean;
-  setQuiz: (quizId: string, questions: Question[], durationSeconds: number) => void;
+  setQuiz: (quizId: string, questions: Question[], durationSeconds: number, questionTimerSeconds?: number) => void;
   answerQuestion: (questionId: string, answer: string) => void;
   nextQuestion: () => void;
   setTimeLeft: (time: number) => void;
@@ -33,16 +34,18 @@ export const useQuizStore = create<QuizState>((set) => ({
   questions: [],
   currentQuestionIndex: 0,
   answers: {},
-  timeLeft: 15, // 15 seconds per question
-  globalTimeLeft: 1800, // 30 minutes default
+  timeLeft: 30,
+  perQuestionTimer: 30,
+  globalTimeLeft: 1800,
   totalTime: 1800,
   isSubmitting: false,
-  setQuiz: (quizId, questions, durationSeconds) => set({ 
+  setQuiz: (quizId, questions, durationSeconds, questionTimerSeconds = 30) => set({ 
     quizId, 
     questions, 
     currentQuestionIndex: 0, 
     answers: {}, 
-    timeLeft: 15,
+    perQuestionTimer: questionTimerSeconds,
+    timeLeft: questionTimerSeconds,
     globalTimeLeft: durationSeconds,
     totalTime: durationSeconds
   }),
@@ -51,10 +54,10 @@ export const useQuizStore = create<QuizState>((set) => ({
   })),
   nextQuestion: () => set((state) => ({
     currentQuestionIndex: state.currentQuestionIndex + 1,
-    timeLeft: 15
+    timeLeft: state.perQuestionTimer || 30
   })),
   setTimeLeft: (time) => set({ timeLeft: time }),
   setGlobalTimeLeft: (time) => set({ globalTimeLeft: time }),
   setSubmitting: (isSubmitting) => set({ isSubmitting }),
-  resetQuiz: () => set({ quizId: null, questions: [], currentQuestionIndex: 0, answers: {}, timeLeft: 15, globalTimeLeft: 1800, totalTime: 1800, isSubmitting: false })
+  resetQuiz: () => set({ quizId: null, questions: [], currentQuestionIndex: 0, answers: {}, timeLeft: 30, perQuestionTimer: 30, globalTimeLeft: 1800, totalTime: 1800, isSubmitting: false })
 }));

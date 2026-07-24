@@ -18,6 +18,8 @@ export const QuizCreatePage: React.FC = () => {
   const [quizName, setQuizName] = useState('');
   const [description, setDescription] = useState('');
   const [courseId, setCourseId] = useState('');
+  const [questionTimer, setQuestionTimer] = useState<number>(30);
+  const [duration, setDuration] = useState<number>(30);
   
   const [fileA, setFileA] = useState<File | null>(null);
   const [fileB, setFileB] = useState<File | null>(null);
@@ -143,8 +145,8 @@ export const QuizCreatePage: React.FC = () => {
         description,
         courseId: effectiveCourseId,
         courseName: isInterviewEvent ? 'Interview Session' : (selectedCourse?.name || ''),
-        duration: 30,
-        questionTimer: 15,
+        duration: Number(duration) || 30,
+        questionTimer: Number(questionTimer) || 30,
         totalQuestions: dataA.length,
         status: 'draft',
         eventId,
@@ -227,6 +229,39 @@ export const QuizCreatePage: React.FC = () => {
                   </select>
                 </div>
               )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="questionTimer">Per-Question Time Limit</Label>
+                <select 
+                  id="questionTimer" 
+                  value={questionTimer}
+                  onChange={(e) => setQuestionTimer(Number(e.target.value))}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
+                >
+                  <option value={15}>15 Seconds per question</option>
+                  <option value={30}>30 Seconds per question (Default)</option>
+                  <option value={45}>45 Seconds per question</option>
+                  <option value={60}>60 Seconds per question (1 min)</option>
+                  <option value={90}>90 Seconds per question (1.5 min)</option>
+                  <option value={120}>120 Seconds per question (2 min)</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="duration">Total Quiz Duration (Minutes)</Label>
+                <Input 
+                  id="duration" 
+                  type="number"
+                  min={5}
+                  max={180}
+                  value={duration}
+                  onChange={(e) => setDuration(Number(e.target.value))}
+                  placeholder="30" 
+                  required
+                />
+              </div>
             </div>
 
             <div className="space-y-2">

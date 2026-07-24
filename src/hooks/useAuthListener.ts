@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { useAuthStore } from '../store/useAuthStore';
@@ -10,10 +10,8 @@ export const useAuthListener = () => {
   useEffect(() => {
     let unsubscribeDoc: (() => void) | null = null;
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      const isExplicitSession = sessionStorage.getItem('aescion_active_session') === 'true';
-
-      if (firebaseUser && isExplicitSession) {
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         
         if (unsubscribeDoc) unsubscribeDoc();
@@ -31,26 +29,23 @@ export const useAuthListener = () => {
               eventId: userData.eventId,
               questionSet: userData.questionSet,
             });
-            setLoading(false);
           } else {
-            setTimeout(() => {
-              setLoading(false);
-            }, 2000);
+            // Fallback for user record creation delay
+            setUser({
+              uid: firebaseUser.uid,
+              name: firebaseUser.displayName || 'User',
+              email: firebaseUser.email || '',
+              role: firebaseUser.email === 'contact.aescion@gmail.com' ? 'admin' : 'participant',
+              status: 'approved',
+            });
           }
+          setLoading(false);
         }, (error) => {
           console.error("Error listening to user document", error);
           setLoading(false);
         });
         
       } else {
-        // If Firebase attempts auto-login from IndexedDB without explicit session login
-        if (firebaseUser && !isExplicitSession) {
-          try {
-            await signOut(auth);
-          } catch (e) {
-            console.error("Error clearing auto-restored auth:", e);
-          }
-        }
         if (unsubscribeDoc) {
           unsubscribeDoc();
           unsubscribeDoc = null;
