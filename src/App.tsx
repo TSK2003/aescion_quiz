@@ -30,9 +30,10 @@ import { WaitingRoomPage } from './pages/participant/WaitingRoomPage';
 import { LiveQuizPage } from './pages/participant/LiveQuizPage';
 import { ParticipantResultsPage } from './pages/participant/ParticipantResultsPage';
 
-// Shared
+// Public & Shared
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
-import { LiveTV } from './pages/LiveTV';
+import { LiveTV } from './pages/public/LiveTV';
+import { LandingPage } from './pages/public/LandingPage';
 import { Toaster } from './components/ui/Toaster';
 
 function App() {
@@ -42,6 +43,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/landing" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { db } from '../config/firebase';
+import { db } from '../../config/firebase';
 import { collection, query, onSnapshot, getDocs, where, doc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Medal, Award, TrendingUp, MonitorPlay, CheckCircle2, ListChecks } from 'lucide-react';
 
-import logo from '../assets/hero.png';
+import logo from '../../assets/hero.png';
 
 export const LiveTV: React.FC = () => {
   const [results, setResults] = useState<any[]>([]);

@@ -1,10 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useAuthStore } from '../store/useAuthStore';
-import { Button } from '../components/ui/Button';
+import { useAuthStore } from '../../store/useAuthStore';
+import { Button } from '../../components/ui/Button';
 import { motion } from 'framer-motion';
 
-import logo from '../assets/hero.png';
+import logo from '../../assets/hero.png';
 
 export const LandingPage: React.FC = () => {
   useAuthStore();
