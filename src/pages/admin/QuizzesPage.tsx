@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../../config/firebase';
-import { collection, query, getDocs, doc, deleteDoc, updateDoc, addDoc, where, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, query, getDocs, doc, getDoc, deleteDoc, updateDoc, addDoc, where, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Link, useParams } from 'react-router-dom';
@@ -53,7 +53,10 @@ export const QuizzesPage: React.FC = () => {
     setStartingQuiz(quiz.id);
 
     try {
-      // 1. Fetch approved users for this course + event
+      const eventSnap = await getDoc(doc(db, 'events', eventId));
+      const isInterview = eventSnap.exists() && eventSnap.data().eventType === 'interview';
+
+      // 1. Fetch approved users for this event
       const q1 = query(collection(db, 'users'), where('eventId', '==', eventId));
       const q2 = query(collection(db, 'users'), where('eventIds', 'array-contains', eventId));
       const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
@@ -63,16 +66,18 @@ export const QuizzesPage: React.FC = () => {
       snap2.docs.forEach(doc => userMap.set(doc.id, { id: doc.id, ...doc.data() } as any));
 
       const approvedUsers = Array.from(userMap.values()).filter(u => {
+        if (u.role !== 'participant' || u.status !== 'approved') return false;
+        if (isInterview || quiz.courseId === eventId) return true;
         let userCourseId = u.courseId;
         if (u.eventId !== eventId && u.enrollments) {
           const en = u.enrollments.find((e: any) => e.eventId === eventId);
           if (en) userCourseId = en.courseId;
         }
-        return userCourseId === quiz.courseId && u.role === 'participant' && u.status === 'approved';
+        return userCourseId === quiz.courseId;
       });
 
       if (approvedUsers.length === 0) {
-        addToast("No approved users found for this course. Please approve users first.", 'error');
+        addToast("No approved users found for this session. Please approve users first.", 'error');
         setStartingQuiz(null);
         return;
       }

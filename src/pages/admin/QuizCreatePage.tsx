@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../config/firebase';
-import { collection, query, getDocs, addDoc, where } from 'firebase/firestore';
+import { collection, query, getDocs, addDoc, doc, getDoc, where } from 'firebase/firestore';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -13,6 +13,7 @@ export const QuizCreatePage: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isInterviewEvent, setIsInterviewEvent] = useState(false);
   
   const [quizName, setQuizName] = useState('');
   const [description, setDescription] = useState('');
@@ -23,13 +24,25 @@ export const QuizCreatePage: React.FC = () => {
   const [validationReport, setValidationReport] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchCourses = async () => {
+    const fetchEventAndCourses = async () => {
       if (!eventId) return;
-      const q = query(collection(db, 'courses'), where('eventId', '==', eventId));
-      const querySnapshot = await getDocs(q);
-      setCourses(querySnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+      try {
+        const eventSnap = await getDoc(doc(db, 'events', eventId));
+        if (eventSnap.exists() && eventSnap.data().eventType === 'interview') {
+          setIsInterviewEvent(true);
+          setCourseId(eventId); // Auto-assign to eventId for interviews
+        } else {
+          setIsInterviewEvent(false);
+        }
+
+        const q = query(collection(db, 'courses'), where('eventId', '==', eventId));
+        const querySnapshot = await getDocs(q);
+        setCourses(querySnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+      } catch (err) {
+        console.error("Error fetching event details:", err);
+      }
     };
-    fetchCourses();
+    fetchEventAndCourses();
   }, [eventId]);
 
   const parseExcel = async (file: File) => {
@@ -63,7 +76,7 @@ export const QuizCreatePage: React.FC = () => {
     const isMissing = (val: any) => val === undefined || val === null || val.toString().trim() === '';
 
     questions.forEach((q, index) => {
-      const rowNum = index + 2; // Assuming row 1 is header
+      const rowNum = index + 2;
       if (isMissing(q['Question'])) report += `Set ${setName} - Row ${rowNum}: Missing Question text.\n`;
       if (isMissing(q['Option A'])) report += `Set ${setName} - Row ${rowNum}: Missing Option A.\n`;
       if (isMissing(q['Option B'])) report += `Set ${setName} - Row ${rowNum}: Missing Option B.\n`;
@@ -105,7 +118,8 @@ export const QuizCreatePage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!quizName || !courseId || !fileA || !fileB) {
+    const effectiveCourseId = isInterviewEvent ? (eventId || 'general') : courseId;
+    if (!quizName || !effectiveCourseId || !fileA || !fileB) {
       setValidationReport("Please fill all fields and upload both Question Sets.");
       return;
     }
@@ -123,13 +137,12 @@ export const QuizCreatePage: React.FC = () => {
         return;
       }
 
-      // If valid, create quiz document
-      const selectedCourse = courses.find(c => c.id === courseId);
+      const selectedCourse = courses.find(c => c.id === effectiveCourseId);
       const quizDoc = await addDoc(collection(db, 'quizzes'), {
         name: quizName,
         description,
-        courseId,
-        courseName: selectedCourse?.name || '',
+        courseId: effectiveCourseId,
+        courseName: isInterviewEvent ? 'Interview Session' : (selectedCourse?.name || ''),
         duration: 30,
         questionTimer: 15,
         totalQuestions: dataA.length,
@@ -138,7 +151,6 @@ export const QuizCreatePage: React.FC = () => {
         createdAt: new Date().toISOString()
       });
 
-      // Save Question Set A
       await addDoc(collection(db, 'questionSets'), {
         quizId: quizDoc.id,
         setName: 'A',
@@ -153,10 +165,10 @@ export const QuizCreatePage: React.FC = () => {
         }))
       });
 
-      // Save Question Set B
       await addDoc(collection(db, 'questionSets'), {
         quizId: quizDoc.id,
         setName: 'B',
+        eventId,
         questions: dataB.map(q => ({
           text: q['Question'],
           optionA: q['Option A'],
@@ -186,32 +198,35 @@ export const QuizCreatePage: React.FC = () => {
       <Card>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className={`grid grid-cols-1 ${isInterviewEvent ? '' : 'md:grid-cols-2'} gap-6`}>
               <div className="space-y-2">
                 <Label htmlFor="quizName">Quiz Name</Label>
                 <Input 
                   id="quizName" 
                   value={quizName}
                   onChange={(e) => setQuizName(e.target.value)}
-                  placeholder="e.g., Midterm Assessment" 
+                  placeholder="e.g., Technical Assessment Round 1" 
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="courseId">Assign to Course</Label>
-                <select 
-                  id="courseId" 
-                  value={courseId}
-                  onChange={(e) => setCourseId(e.target.value)}
-                  required
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <option value="">Select a course</option>
-                  {courses.map(course => (
-                    <option key={course.id} value={course.id}>{course.name}</option>
-                  ))}
-                </select>
-              </div>
+
+              {!isInterviewEvent && (
+                <div className="space-y-2">
+                  <Label htmlFor="courseId">Assign to Course</Label>
+                  <select 
+                    id="courseId" 
+                    value={courseId}
+                    onChange={(e) => setCourseId(e.target.value)}
+                    required
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
+                  >
+                    <option value="">Select a course</option>
+                    {courses.map(course => (
+                      <option key={course.id} value={course.id}>{course.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -239,16 +254,10 @@ export const QuizCreatePage: React.FC = () => {
                     type="file" 
                     accept=".xlsx, .xls" 
                     onChange={(e) => setFileA(e.target.files?.[0] || null)}
-                    className="hidden" 
-                    id="fileA" 
+                    className="cursor-pointer"
+                    required
                   />
-                  <Label htmlFor="fileA" className="cursor-pointer flex flex-col items-center">
-                    <svg className="w-8 h-8 mb-2 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    <span className="text-sm font-medium text-primary">Click to upload Set A</span>
-                    {fileA && <span className="text-xs text-muted-foreground mt-1">{fileA.name}</span>}
-                  </Label>
+                  <p className="text-xs text-muted-foreground mt-2">Upload Excel file for Set A</p>
                 </div>
               </div>
 
@@ -259,32 +268,27 @@ export const QuizCreatePage: React.FC = () => {
                     type="file" 
                     accept=".xlsx, .xls" 
                     onChange={(e) => setFileB(e.target.files?.[0] || null)}
-                    className="hidden" 
-                    id="fileB" 
+                    className="cursor-pointer"
+                    required
                   />
-                  <Label htmlFor="fileB" className="cursor-pointer flex flex-col items-center">
-                    <svg className="w-8 h-8 mb-2 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    <span className="text-sm font-medium text-primary">Click to upload Set B</span>
-                    {fileB && <span className="text-xs text-muted-foreground mt-1">{fileB.name}</span>}
-                  </Label>
+                  <p className="text-xs text-muted-foreground mt-2">Upload Excel file for Set B</p>
                 </div>
               </div>
             </div>
 
             {validationReport && (
-              <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-md">
-                <h4 className="font-semibold text-destructive mb-2">Validation Errors Found:</h4>
-                <pre className="text-xs text-destructive whitespace-pre-wrap font-mono max-h-40 overflow-y-auto">
-                  {validationReport}
-                </pre>
+              <div className="bg-destructive/10 border border-destructive text-destructive p-4 rounded-md text-sm whitespace-pre-wrap">
+                {validationReport}
               </div>
             )}
 
             <div className="flex justify-end gap-4 pt-4 border-t border-border">
-              <Button type="button" variant="outline" onClick={() => navigate(`/admin/events/${eventId}/quizzes`)}>Cancel</Button>
-              <Button type="submit" isLoading={loading}>Create Quiz & Import Questions</Button>
+              <Button type="button" variant="outline" onClick={() => navigate(`/admin/events/${eventId}/quizzes`)}>
+                Cancel
+              </Button>
+              <Button type="submit" isLoading={loading}>
+                Create Quiz & Import Questions
+              </Button>
             </div>
           </form>
         </CardContent>

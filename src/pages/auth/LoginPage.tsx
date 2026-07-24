@@ -153,7 +153,7 @@ export const LoginPage: React.FC = () => {
       <Card className="w-full max-w-md shadow-xl border-0 ring-1 ring-border/50">
         <CardHeader className="space-y-2 text-center pb-6">
           <div className="mx-auto flex items-center justify-center mb-2">
-            <img src={logo} alt="AESCION Logo" className="h-40 w-40" />
+            <img src={logo} alt="AESCION Logo" className="h-16 sm:h-20 w-auto object-contain" />
           </div>
           <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
           <CardDescription>Enter your credentials to access your account</CardDescription>
