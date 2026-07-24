@@ -28,10 +28,24 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
+  const MAX_ATTEMPTS = 5;
+
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname;
+
+  useEffect(() => {
+    let timer: any;
+    if (lockoutSeconds > 0) {
+      timer = setInterval(() => {
+        setLockoutSeconds((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [lockoutSeconds]);
 
   useEffect(() => {
     if (!isAuthLoading && isAuthenticated && user) {
@@ -73,6 +87,11 @@ export const LoginPage: React.FC = () => {
   };
 
   const onSubmit = async (data: LoginFormValues) => {
+    if (lockoutSeconds > 0) {
+      setError(`Security Lockout active. Please wait ${lockoutSeconds} seconds.`);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
@@ -82,6 +101,7 @@ export const LoginPage: React.FC = () => {
       
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
+        setFailedAttempts(0);
         const userData = userDoc.data();
         if (userData.role === 'admin') {
           navigate(from && from.startsWith('/admin') ? from : '/admin/dashboard');
@@ -89,16 +109,23 @@ export const LoginPage: React.FC = () => {
           navigate(from && from.startsWith('/participant') ? from : '/participant/dashboard');
         }
       } else {
-        // If no document exists, the user was likely deleted by the admin from Firestore.
-        // We sign them out of Auth immediately and show an error.
         await signOut(auth);
         setError('Your account has been removed by the administrator. Please contact support.');
       }
     } catch (err: any) {
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found') {
-        setError('Account not found. Please register first.');
+      const nextAttempts = failedAttempts + 1;
+      setFailedAttempts(nextAttempts);
+
+      if (nextAttempts >= MAX_ATTEMPTS) {
+        setLockoutSeconds(60);
+        setError(`Security Alert: Maximum failed login attempts reached (5/5). Login locked for 60 seconds.`);
       } else {
-        setError(err.message || 'Failed to login');
+        const remaining = MAX_ATTEMPTS - nextAttempts;
+        if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+          setError(`Invalid credentials. ${remaining} of ${MAX_ATTEMPTS} attempts remaining.`);
+        } else {
+          setError(`${err.message || 'Failed to login'}. ${remaining} of ${MAX_ATTEMPTS} attempts remaining.`);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -123,6 +150,7 @@ export const LoginPage: React.FC = () => {
                 id="email"
                 type="email"
                 placeholder="name@example.com"
+                disabled={lockoutSeconds > 0}
                 {...register('email')}
                 className={errors.email ? 'border-destructive focus-visible:ring-destructive' : ''}
               />
@@ -136,6 +164,7 @@ export const LoginPage: React.FC = () => {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
+                  disabled={lockoutSeconds > 0}
                   {...register('password')}
                   className={errors.password ? 'border-destructive focus-visible:ring-destructive pr-10' : 'pr-10'}
                 />
@@ -172,8 +201,8 @@ export const LoginPage: React.FC = () => {
               </div>
             )}
             
-            <Button type="submit" className="w-full" isLoading={isLoading}>
-              Sign In
+            <Button type="submit" className="w-full" isLoading={isLoading} disabled={lockoutSeconds > 0}>
+              {lockoutSeconds > 0 ? `Locked Out (${lockoutSeconds}s)` : 'Sign In'}
             </Button>
           </form>
         </CardContent>
