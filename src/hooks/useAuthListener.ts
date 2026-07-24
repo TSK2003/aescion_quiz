@@ -28,6 +28,7 @@ export const useAuthListener = () => {
               courseId: userData.courseId,
               eventId: userData.eventId,
               questionSet: userData.questionSet,
+              enrollments: userData.enrollments || [],
             });
           } else {
             // Fallback for user record creation delay

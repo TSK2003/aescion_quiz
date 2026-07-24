@@ -20,10 +20,28 @@ interface AuthState {
   setLoading: (loading: boolean) => void;
 }
 
+const getInitialUser = (): User | null => {
+  try {
+    const cached = localStorage.getItem('aescion_user_session');
+    return cached ? JSON.parse(cached) : null;
+  } catch (e) {
+    return null;
+  }
+};
+
+const initialUser = getInitialUser();
+
 export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  isAuthenticated: false,
-  isLoading: true,
-  setUser: (user) => set({ user, isAuthenticated: !!user }),
+  user: initialUser,
+  isAuthenticated: !!initialUser,
+  isLoading: !initialUser,
+  setUser: (user) => {
+    if (user) {
+      localStorage.setItem('aescion_user_session', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('aescion_user_session');
+    }
+    set({ user, isAuthenticated: !!user, isLoading: false });
+  },
   setLoading: (isLoading) => set({ isLoading }),
 }));
