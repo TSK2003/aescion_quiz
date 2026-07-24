@@ -136,11 +136,11 @@ export const LoginPage: React.FC = () => {
       } else {
         const remaining = MAX_ATTEMPTS - nextAttempts;
         if (err.code === 'permission-denied' || err.message?.includes('permission')) {
-          setError(`Database Permission Notice: Please click the blue 'Publish' button in Firebase Console -> Firestore Rules. (${remaining} attempts remaining)`);
+          setError(`Database Permission Notice: Please verify Firestore security rules in Firebase Console. (${remaining} attempts remaining)`);
         } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-          setError(`Invalid Email or Password. Super Admin Email is contact.aescion@gmail.com (${remaining} attempts remaining).`);
+          setError(`Invalid email or password. Please check your credentials (${remaining} attempts remaining).`);
         } else {
-          setError(`${err.message || 'Invalid credentials'}. (${remaining} attempts remaining).`);
+          setError(`${err.message || 'Invalid credentials'} (${remaining} attempts remaining).`);
         }
       }
     } finally {
@@ -165,7 +165,7 @@ export const LoginPage: React.FC = () => {
               <Input
                 id="email"
                 type="email"
-                placeholder="contact.aescion@gmail.com"
+                placeholder="name@example.com"
                 disabled={lockoutSeconds > 0}
                 {...register('email')}
                 className={errors.email ? 'border-destructive focus-visible:ring-destructive' : ''}
@@ -180,6 +180,7 @@ export const LoginPage: React.FC = () => {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
                   disabled={lockoutSeconds > 0}
                   {...register('password')}
                   className={errors.password ? 'border-destructive focus-visible:ring-destructive pr-10' : 'pr-10'}
