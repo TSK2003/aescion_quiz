@@ -101,6 +101,7 @@ export const LoginPage: React.FC = () => {
       
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
+        sessionStorage.setItem('aescion_active_session', 'true');
         setFailedAttempts(0);
         const userData = userDoc.data();
         if (userData.role === 'admin') {
@@ -109,6 +110,7 @@ export const LoginPage: React.FC = () => {
           navigate(from && from.startsWith('/participant') ? from : '/participant/dashboard');
         }
       } else {
+        sessionStorage.removeItem('aescion_active_session');
         await signOut(auth);
         setError('Your account has been removed by the administrator. Please contact support.');
       }

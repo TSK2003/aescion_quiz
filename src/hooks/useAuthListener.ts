@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { useAuthStore } from '../store/useAuthStore';
@@ -11,8 +11,9 @@ export const useAuthListener = () => {
     let unsubscribeDoc: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        // Listen to the user document in Firestore to get role and status in real-time
+      const isExplicitSession = sessionStorage.getItem('aescion_active_session') === 'true';
+
+      if (firebaseUser && isExplicitSession) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         
         if (unsubscribeDoc) unsubscribeDoc();
@@ -32,13 +33,6 @@ export const useAuthListener = () => {
             });
             setLoading(false);
           } else {
-            // Document doesn't exist yet (e.g., during registration process)
-            // It might exist soon, or the user is deleted. We shouldn't block forever.
-            // But we also shouldn't set user to null immediately if they just registered.
-            console.warn('User document not found yet. Waiting for creation...');
-            
-            // If it's a deleted user logging in, we can set them to null so they get denied.
-            // We'll set a timeout. If it doesn't appear in 2s, we assume it's deleted.
             setTimeout(() => {
               setLoading(false);
             }, 2000);
@@ -49,6 +43,14 @@ export const useAuthListener = () => {
         });
         
       } else {
+        // If Firebase attempts auto-login from IndexedDB without explicit session login
+        if (firebaseUser && !isExplicitSession) {
+          try {
+            await signOut(auth);
+          } catch (e) {
+            console.error("Error clearing auto-restored auth:", e);
+          }
+        }
         if (unsubscribeDoc) {
           unsubscribeDoc();
           unsubscribeDoc = null;

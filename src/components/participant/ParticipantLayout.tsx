@@ -25,6 +25,7 @@ export const ParticipantLayout: React.FC = () => {
   }, [user, navigate]);
 
   const handleLogout = async () => {
+    sessionStorage.clear();
     await signOut(auth);
     navigate('/login');
   };

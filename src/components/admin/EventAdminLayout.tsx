@@ -48,6 +48,7 @@ export const EventAdminLayout: React.FC = () => {
   }, [location.pathname]);
 
   const handleLogout = async () => {
+    sessionStorage.clear();
     await signOut(auth);
     navigate('/login');
   };
