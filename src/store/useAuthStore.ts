@@ -22,7 +22,7 @@ interface AuthState {
 
 const getInitialUser = (): User | null => {
   try {
-    const cached = localStorage.getItem('aescion_user_session');
+    const cached = sessionStorage.getItem('aescion_user_session');
     return cached ? JSON.parse(cached) : null;
   } catch (e) {
     return null;
@@ -37,9 +37,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: !initialUser,
   setUser: (user) => {
     if (user) {
-      localStorage.setItem('aescion_user_session', JSON.stringify(user));
+      sessionStorage.setItem('aescion_user_session', JSON.stringify(user));
     } else {
-      localStorage.removeItem('aescion_user_session');
+      sessionStorage.removeItem('aescion_user_session');
     }
     set({ user, isAuthenticated: !!user, isLoading: false });
   },
