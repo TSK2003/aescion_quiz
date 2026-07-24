@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { signInWithEmailAndPassword, signOut, setPersistence, browserSessionPersistence, sendPasswordResetEmail } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut, setPersistence, inMemoryPersistence, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db } from '../../config/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
@@ -95,7 +95,7 @@ export const LoginPage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      await setPersistence(auth, browserSessionPersistence);
+      await setPersistence(auth, inMemoryPersistence);
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
       

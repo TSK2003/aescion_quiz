@@ -3,18 +3,12 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { auth } from './config/firebase'
-import { signOut } from 'firebase/auth'
-import { seedDefaultAdmin } from './services/seedAdmin'
+import { signOut, setPersistence, inMemoryPersistence } from 'firebase/auth'
 
-// Automatically seed default admin account into Firebase Auth & Firestore
-seedDefaultAdmin();
-
-// Force clear old local sessions once to enforce session persistence
-if (localStorage.getItem('clear_old_session_v2') !== 'true') {
-  signOut(auth).then(() => {
-    localStorage.setItem('clear_old_session_v2', 'true');
-  }).catch(console.error);
-}
+// Enforce strict security: clear any residual cached auth session immediately
+setPersistence(auth, inMemoryPersistence)
+  .then(() => signOut(auth))
+  .catch(console.error);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

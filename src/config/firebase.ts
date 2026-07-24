@@ -1,8 +1,8 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, setPersistence, browserSessionPersistence } from "firebase/auth";
+import { getAuth, setPersistence, inMemoryPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-// TODO: Replace with your actual Firebase config
+// Initialize Firebase
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDummyKeyPlaceholder",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "aescion-quiz-placeholder.firebaseapp.com",
@@ -15,5 +15,5 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-setPersistence(auth, browserSessionPersistence).catch((error) => console.error("Error setting persistence", error));
+setPersistence(auth, inMemoryPersistence).catch((error) => console.error("Error setting persistence", error));
 export const db = getFirestore(app);
