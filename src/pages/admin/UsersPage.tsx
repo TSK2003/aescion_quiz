@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { db } from '../../config/firebase';
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -114,14 +114,73 @@ export const UsersPage: React.FC = () => {
   const handleRemoveUser = async () => {
     if (!userToDelete) return;
     try {
-      await deleteDoc(doc(db, 'users', userToDelete));
+      const batch = writeBatch(db);
+
+      // Delete main user document
+      batch.delete(doc(db, 'users', userToDelete));
+
+      // Delete user's participant records
+      const partQuery = query(collection(db, 'participants'), where('userId', '==', userToDelete));
+      const partSnap = await getDocs(partQuery);
+      partSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // Delete user's results
+      const resQuery = query(collection(db, 'results'), where('userId', '==', userToDelete));
+      const resSnap = await getDocs(resQuery);
+      resSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // Delete user's attendance records
+      const attQuery = query(collection(db, 'attendance'), where('userId', '==', userToDelete));
+      const attSnap = await getDocs(attQuery);
+      attSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // Delete user's violations
+      const violQuery = query(collection(db, 'violations'), where('userId', '==', userToDelete));
+      const violSnap = await getDocs(violQuery);
+      violSnap.docs.forEach(d => batch.delete(d.ref));
+
+      await batch.commit();
+
       setUsers(users.filter(u => u.id !== userToDelete));
-      addToast("User removed successfully", 'success');
+      addToast("User and all associated records removed successfully from Firebase", 'success');
     } catch (error) {
       console.error("Error removing user:", error);
-      addToast("Failed to remove user.", 'error');
+      addToast("Failed to remove user from database.", 'error');
     } finally {
       setUserToDelete(null);
+    }
+  };
+
+  const handleAutoAssignQuestionSets = async () => {
+    const unassigned = users.filter(u => u.status === 'approved' && (!u.questionSet || (u.questionSet !== 'A' && u.questionSet !== 'B')));
+    if (unassigned.length === 0) {
+      addToast("All approved users are already assigned to a question set!", 'info');
+      return;
+    }
+
+    try {
+      const batch = writeBatch(db);
+      const updatedUserMap = new Map<string, 'A' | 'B'>();
+
+      unassigned.forEach((user, idx) => {
+        const assignedSet: 'A' | 'B' = idx % 2 === 0 ? 'A' : 'B';
+        updatedUserMap.set(user.id, assignedSet);
+        batch.update(doc(db, 'users', user.id), { questionSet: assignedSet });
+      });
+
+      await batch.commit();
+
+      setUsers(users.map(u => {
+        if (updatedUserMap.has(u.id)) {
+          return { ...u, questionSet: updatedUserMap.get(u.id) };
+        }
+        return u;
+      }));
+
+      addToast(`Successfully auto-assigned ${unassigned.length} participant(s) into Set A and Set B!`, 'success');
+    } catch (error) {
+      console.error("Error auto-assigning question sets:", error);
+      addToast("Failed to auto-assign question sets.", 'error');
     }
   };
 
@@ -360,11 +419,21 @@ export const UsersPage: React.FC = () => {
       {/* Question Set Assignment - Drag & Drop */}
       {approvedUsers.length > 0 && (
         <Card className="border-border shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Question Set Assignment
-            </CardTitle>
-            <CardDescription>Drag and drop approved users between Set A and Set B. Changes save automatically.</CardDescription>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                Question Set Assignment
+              </CardTitle>
+              <CardDescription>Drag and drop approved users between Set A and Set B, or auto-assign instantly.</CardDescription>
+            </div>
+            {unassignedUsers.length > 0 && (
+              <Button 
+                onClick={handleAutoAssignQuestionSets}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm shrink-0 cursor-pointer"
+              >
+                ⚡ Auto-Assign ({unassignedUsers.length} Unassigned)
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

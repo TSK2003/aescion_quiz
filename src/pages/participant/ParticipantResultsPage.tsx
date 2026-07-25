@@ -116,7 +116,7 @@ export const ParticipantResultsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {!result.isDisqualified && questions.length > 0 && (
+      {questions.length > 0 && (
         <div className="space-y-6">
           <h2 className="text-2xl font-bold tracking-tight">Question Breakdown</h2>
           <div className="space-y-4">

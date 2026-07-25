@@ -257,7 +257,7 @@ export const LiveTV: React.FC = () => {
                             result.isDisqualified ? 'text-red-600 dark:text-red-500 drop-shadow-sm' : 
                             'text-black drop-shadow-sm'
                           }`}>
-                            {result.isDisqualified ? 'DQ' : result.score}
+                            {result.score}
                           </span>
                           {result.isDisqualified && <span className="text-[10px] uppercase font-bold text-red-600 dark:text-red-500 tracking-widest mt-1">Disqualified</span>}
                         </div>

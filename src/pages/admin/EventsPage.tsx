@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { db, auth } from '../../config/firebase';
-import { collection, query, getDocs, addDoc, serverTimestamp, doc, writeBatch, where, deleteDoc } from 'firebase/firestore';
+import { collection, query, getDocs, addDoc, serverTimestamp, doc, writeBatch, where } from 'firebase/firestore';
 import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -139,10 +139,50 @@ export const EventsPage: React.FC = () => {
       const credential = EmailAuthProvider.credential(auth.currentUser.email, adminPassword);
       await reauthenticateWithCredential(auth.currentUser, credential);
 
-      await deleteDoc(doc(db, 'events', eventToDelete));
+      const batch = writeBatch(db);
+
+      // 1. Delete main event document
+      batch.delete(doc(db, 'events', eventToDelete));
+
+      // 2. Delete courses for this event
+      const cQuery = query(collection(db, 'courses'), where('eventId', '==', eventToDelete));
+      const cSnap = await getDocs(cQuery);
+      cSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // 3. Delete quizzes for this event
+      const qQuery = query(collection(db, 'quizzes'), where('eventId', '==', eventToDelete));
+      const qSnap = await getDocs(qQuery);
+      qSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // 4. Delete questionSets for this event
+      const qsQuery = query(collection(db, 'questionSets'), where('eventId', '==', eventToDelete));
+      const qsSnap = await getDocs(qsQuery);
+      qsSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // 5. Delete participants for this event
+      const pQuery = query(collection(db, 'participants'), where('eventId', '==', eventToDelete));
+      const pSnap = await getDocs(pQuery);
+      pSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // 6. Delete results for this event
+      const rQuery = query(collection(db, 'results'), where('eventId', '==', eventToDelete));
+      const rSnap = await getDocs(rQuery);
+      rSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // 7. Delete attendance for this event
+      const aQuery = query(collection(db, 'attendance'), where('eventId', '==', eventToDelete));
+      const aSnap = await getDocs(aQuery);
+      aSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // 8. Delete violations for this event
+      const vQuery = query(collection(db, 'violations'), where('eventId', '==', eventToDelete));
+      const vSnap = await getDocs(vQuery);
+      vSnap.docs.forEach(d => batch.delete(d.ref));
+
+      await batch.commit();
       
       setEvents(events.filter(ev => ev.id !== eventToDelete));
-      addToast('Event deleted successfully', 'success');
+      addToast('Event and all associated data deleted successfully from Firebase', 'success');
       
       setEventToDelete(null);
       setAdminPassword('');

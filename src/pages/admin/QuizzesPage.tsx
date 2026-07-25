@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../../config/firebase';
-import { collection, query, getDocs, doc, getDoc, deleteDoc, updateDoc, addDoc, where, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, query, getDocs, doc, getDoc, updateDoc, addDoc, where, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -46,12 +46,38 @@ export const QuizzesPage: React.FC = () => {
   const handleDelete = async () => {
     if (!quizToDelete) return;
     try {
-      await deleteDoc(doc(db, 'quizzes', quizToDelete));
+      const batch = writeBatch(db);
+
+      // 1. Delete quiz document
+      batch.delete(doc(db, 'quizzes', quizToDelete));
+
+      // 2. Delete questionSets for this quiz
+      const qsQuery = query(collection(db, 'questionSets'), where('quizId', '==', quizToDelete));
+      const qsSnap = await getDocs(qsQuery);
+      qsSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // 3. Delete participants for this quiz
+      const partQuery = query(collection(db, 'participants'), where('quizId', '==', quizToDelete));
+      const partSnap = await getDocs(partQuery);
+      partSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // 4. Delete results for this quiz
+      const resQuery = query(collection(db, 'results'), where('quizId', '==', quizToDelete));
+      const resSnap = await getDocs(resQuery);
+      resSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // 5. Delete violations for this quiz
+      const violQuery = query(collection(db, 'violations'), where('quizId', '==', quizToDelete));
+      const violSnap = await getDocs(violQuery);
+      violSnap.docs.forEach(d => batch.delete(d.ref));
+
+      await batch.commit();
+
       setQuizzes(quizzes.filter(q => q.id !== quizToDelete));
-      addToast("Quiz deleted successfully", 'success');
+      addToast("Quiz and all associated data deleted successfully from Firebase", 'success');
     } catch (error) {
       console.error("Error deleting quiz:", error);
-      addToast("Failed to delete quiz", 'error');
+      addToast("Failed to delete quiz from database", 'error');
     } finally {
       setQuizToDelete(null);
     }
@@ -128,6 +154,14 @@ export const QuizzesPage: React.FC = () => {
         return;
       }
 
+      // Check if all approved participants are assigned to a Question Set (Set A or Set B)
+      const unassignedUsers = approvedUsers.filter(u => !u.questionSet || (u.questionSet !== 'A' && u.questionSet !== 'B'));
+      if (unassignedUsers.length > 0) {
+        addToast(`Cannot start quiz! ${unassignedUsers.length} approved participant(s) have not been assigned to Question Set A or B. Please assign all participants in Users management first.`, 'error');
+        setStartingQuiz(null);
+        return;
+      }
+
       // 2. Fetch question sets for this quiz
       const qSetsQ = query(collection(db, 'questionSets'), where('quizId', '==', quiz.id));
       const qSetsSnap = await getDocs(qSetsQ);
@@ -148,10 +182,9 @@ export const QuizzesPage: React.FC = () => {
       // 3. Batch create participant records
       const batch = writeBatch(db);
       let assignedCount = 0;
-      let skippedCount = 0;
 
-      approvedUsers.forEach((userItem, idx) => {
-        const userSet = idx % 2 === 0 ? 'A' : 'B';
+      approvedUsers.forEach((userItem) => {
+        const userSet = userItem.questionSet;
         const qSetDocId = userSet === 'A' ? setA_Id : setB_Id;
         const participantRef = doc(db, 'participants', `${quiz.id}_${userItem.id}`);
 
@@ -182,18 +215,13 @@ export const QuizzesPage: React.FC = () => {
       await addDoc(collection(db, 'auditLogs'), {
         timestamp: new Date().toISOString(),
         userId: 'admin',
-        eventType: 'Quiz Started (Auto-Assigned)',
+        eventType: 'Quiz Started (Assigned)',
         eventId: eventId,
-        metadata: { quizId: quiz.id, assignedCount, skippedCount }
+        metadata: { quizId: quiz.id, assignedCount }
       });
 
       setQuizzes(quizzes.map(q => q.id === quiz.id ? { ...q, status: 'active', updatedAt } : q));
-
-      if (skippedCount > 0) {
-        addToast(`Quiz started! ${assignedCount} participants assigned. ${skippedCount} users skipped.`, 'warning');
-      } else {
-        addToast(`Quiz started! ${assignedCount} participants assigned successfully.`, 'success');
-      }
+      addToast(`Quiz started! All ${assignedCount} participants assigned with their respective Question Sets.`, 'success');
     } catch (error) {
       console.error("Error starting quiz:", error);
       addToast("Failed to start quiz.", 'error');

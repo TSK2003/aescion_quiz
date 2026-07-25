@@ -205,39 +205,37 @@ export const LiveQuizPage: React.FC = () => {
       let correctCount = 0;
       let wrongCount = 0;
 
-      if (!isDisqualified) {
-        questions.forEach((q) => {
-          if (answers[q.id] === q.correctAnswer) {
-            score += 1;
-            correctCount++;
-          } else if (answers[q.id]) {
-            wrongCount++;
-          }
-        });
-      }
+      questions.forEach((q) => {
+        if (answers[q.id] === q.correctAnswer) {
+          score += 1;
+          correctCount++;
+        } else if (answers[q.id] !== undefined) {
+          wrongCount++;
+        }
+      });
 
-      const totalQuestions = questions.length;
-      const percentage = isDisqualified ? 0 : (score / totalQuestions) * 100;
-      const timeTaken = isDisqualified ? 0 : Math.floor((Date.now() - startTimeRef.current) / 1000);
+      const totalQuestions = questions.length || 1;
+      const percentage = Math.round((score / totalQuestions) * 100);
+      const timeTaken = Math.floor((Date.now() - startTimeRef.current) / 1000);
 
-      // Update participant
+      // Update participant with actual earned score
       await setDoc(doc(db, 'participants', `${quizId}_${user.uid}`), {
         status: isDisqualified ? 'disqualified' : 'completed',
         endTime: serverTimestamp(),
-        score: isDisqualified ? 0 : score,
-        answers: isDisqualified ? {} : answers
+        score,
+        answers
       }, { merge: true });
 
-      // Create result
+      // Create result with actual earned score
       await setDoc(doc(db, 'results', `${quizId}_${user.uid}`), {
         userId: user.uid,
         userName: user.name,
         courseId: user.courseId || '',
         quizId,
-        score: isDisqualified ? 0 : score,
+        score,
         percentage,
-        correctAnswers: isDisqualified ? 0 : correctCount,
-        wrongAnswers: isDisqualified ? 0 : wrongCount,
+        correctAnswers: correctCount,
+        wrongAnswers: wrongCount,
         isDisqualified,
         timeTaken,
         completedAt: serverTimestamp()
@@ -248,7 +246,7 @@ export const LiveQuizPage: React.FC = () => {
         timestamp: new Date().toISOString(),
         userId: user.uid,
         eventType: isDisqualified ? 'Quiz Disqualified' : 'Quiz Submitted',
-        metadata: { quizId, score: isDisqualified ? 0 : score }
+        metadata: { quizId, score, isDisqualified }
       });
 
       navigate(`/participant/dashboard`); // Or results page

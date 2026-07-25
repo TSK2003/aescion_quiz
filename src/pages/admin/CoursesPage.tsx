@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../../config/firebase';
-import { collection, query, getDocs, addDoc, deleteDoc, doc, where } from 'firebase/firestore';
+import { collection, query, getDocs, addDoc, doc, where, writeBatch } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -73,9 +73,35 @@ export const CoursesPage: React.FC = () => {
   const handleDeleteCourse = async () => {
     if (!courseToDelete) return;
     try {
-      await deleteDoc(doc(db, 'courses', courseToDelete));
+      const batch = writeBatch(db);
+
+      // 1. Delete course doc
+      batch.delete(doc(db, 'courses', courseToDelete));
+
+      // 2. Delete quizzes for this course
+      const qQuery = query(collection(db, 'quizzes'), where('courseId', '==', courseToDelete));
+      const qSnap = await getDocs(qQuery);
+      qSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // 3. Delete questionSets for this course
+      const qsQuery = query(collection(db, 'questionSets'), where('courseId', '==', courseToDelete));
+      const qsSnap = await getDocs(qsQuery);
+      qsSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // 4. Delete participants for this course
+      const pQuery = query(collection(db, 'participants'), where('courseId', '==', courseToDelete));
+      const pSnap = await getDocs(pQuery);
+      pSnap.docs.forEach(d => batch.delete(d.ref));
+
+      // 5. Delete results for this course
+      const rQuery = query(collection(db, 'results'), where('courseId', '==', courseToDelete));
+      const rSnap = await getDocs(rQuery);
+      rSnap.docs.forEach(d => batch.delete(d.ref));
+
+      await batch.commit();
+
       setCourses(courses.filter(c => c.id !== courseToDelete));
-      addToast("Course deleted successfully", 'success');
+      addToast("Course and all associated data deleted successfully from Firebase", 'success');
     } catch (error) {
       console.error("Error deleting course:", error);
       addToast("Failed to delete course", 'error');
