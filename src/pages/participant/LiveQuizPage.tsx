@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../config/firebase';
-import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useQuizStore } from '../../store/useQuizStore';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
@@ -256,6 +256,22 @@ export const LiveQuizPage: React.FC = () => {
       setSubmitting(false);
     }
   }, [quizId, user, questions, answers, isSubmitting, navigate, setSubmitting, totalTime, globalTimeLeft]);
+
+  // Listen to Quiz Document status changes (e.g. Admin clicks "Stop Quiz")
+  useEffect(() => {
+    if (!quizId) return;
+
+    const unsubscribe = onSnapshot(doc(db, 'quizzes', quizId), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.status === 'completed' || data.status === 'archived') {
+          handleAutoSubmit();
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [quizId, handleAutoSubmit]);
 
   // Timer Effect
   useEffect(() => {

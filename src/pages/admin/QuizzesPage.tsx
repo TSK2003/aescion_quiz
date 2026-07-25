@@ -17,6 +17,7 @@ export const QuizzesPage: React.FC = () => {
   const [startingQuiz, setStartingQuiz] = useState<string | null>(null);
   const { addToast } = useToastStore();
   const [quizToDelete, setQuizToDelete] = useState<string | null>(null);
+  const [unassignedCount, setUnassignedCount] = useState<number>(0);
 
   // Edit Timers Modal State
   const [editingQuiz, setEditingQuiz] = useState<any | null>(null);
@@ -32,6 +33,18 @@ export const QuizzesPage: React.FC = () => {
       const querySnapshot = await getDocs(q);
       const fetchedQuizzes = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setQuizzes(fetchedQuizzes.filter((q: any) => q.status !== 'archived'));
+
+      // Check unassigned approved users for this event
+      const q1 = query(collection(db, 'users'), where('eventId', '==', eventId));
+      const q2 = query(collection(db, 'users'), where('eventIds', 'array-contains', eventId));
+      const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+      const userMap = new Map();
+      snap1.docs.forEach(doc => userMap.set(doc.id, { id: doc.id, ...doc.data() } as any));
+      snap2.docs.forEach(doc => userMap.set(doc.id, { id: doc.id, ...doc.data() } as any));
+      
+      const approvedUsers = Array.from(userMap.values()).filter((u: any) => u.role === 'participant' && u.status === 'approved');
+      const unassigned = approvedUsers.filter((u: any) => !u.questionSet || (u.questionSet !== 'A' && u.questionSet !== 'B'));
+      setUnassignedCount(unassigned.length);
     } catch (error) {
       console.error("Error fetching quizzes:", error);
     } finally {
@@ -233,9 +246,76 @@ export const QuizzesPage: React.FC = () => {
   const handleUpdateStatus = async (id: string, newStatus: string) => {
     try {
       const updatedAt = new Date().toISOString();
-      await updateDoc(doc(db, 'quizzes', id), { status: newStatus, updatedAt });
+      const batch = writeBatch(db);
+
+      // Update quiz doc status
+      batch.update(doc(db, 'quizzes', id), { status: newStatus, updatedAt });
+
+      if (newStatus === 'completed') {
+        // Fetch questionSets for this quiz
+        const qsQuery = query(collection(db, 'questionSets'), where('quizId', '==', id));
+        const qsSnap = await getDocs(qsQuery);
+        const questionSetsMap = new Map<string, any[]>();
+        qsSnap.docs.forEach(d => {
+          const qsData = d.data();
+          const loadedQs = (qsData.questions || []).map((q: any, idx: number) => ({ id: `q${idx}`, ...q }));
+          questionSetsMap.set(d.id, loadedQs);
+        });
+
+        // Fetch participants for this quiz
+        const pQuery = query(collection(db, 'participants'), where('quizId', '==', id));
+        const pSnap = await getDocs(pQuery);
+
+        pSnap.docs.forEach(pDoc => {
+          const pData = pDoc.data();
+          if (pData.status !== 'completed' && pData.status !== 'disqualified') {
+            const userAnswers = pData.answers || {};
+            const qList = questionSetsMap.get(pData.qSetDocId) || [];
+            
+            let score = 0;
+            let correctCount = 0;
+            let wrongCount = 0;
+
+            qList.forEach((q: any) => {
+              if (userAnswers[q.id] === q.correctAnswer) {
+                score += 1;
+                correctCount++;
+              } else if (userAnswers[q.id] !== undefined) {
+                wrongCount++;
+              }
+            });
+
+            const totalQs = qList.length || 1;
+            const percentage = Math.round((score / totalQs) * 100);
+
+            // Update participant doc
+            batch.update(pDoc.ref, {
+              status: 'completed',
+              score,
+              endTime: serverTimestamp()
+            });
+
+            // Create/update result doc
+            const resultRef = doc(db, 'results', `${id}_${pData.userId}`);
+            batch.set(resultRef, {
+              userId: pData.userId,
+              userName: pData.userName || 'Participant',
+              courseId: pData.courseId || '',
+              quizId: id,
+              score,
+              percentage,
+              correctAnswers: correctCount,
+              wrongAnswers: wrongCount,
+              isDisqualified: false,
+              completedAt: serverTimestamp()
+            }, { merge: true });
+          }
+        });
+      }
+
+      await batch.commit();
       setQuizzes(quizzes.map(q => q.id === id ? { ...q, status: newStatus, updatedAt } : q));
-      addToast(`Quiz status updated to ${newStatus}`, 'success');
+      addToast(newStatus === 'completed' ? "Quiz stopped! Participant scores up to this point have been calculated and saved." : `Quiz status updated to ${newStatus}`, 'success');
     } catch (error) {
       console.error("Error updating quiz status:", error);
       addToast("Failed to update quiz status", 'error');
@@ -260,6 +340,20 @@ export const QuizzesPage: React.FC = () => {
           <Button>Create New Quiz</Button>
         </Link>
       </div>
+
+      {unassignedCount > 0 && (
+        <div className="p-4 bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-medium text-sm shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">⚠️</span>
+            <span><strong>{unassignedCount} approved participant(s)</strong> have not been assigned to Question Set A or Set B. Quizzes cannot be started until all participants are assigned.</span>
+          </div>
+          <Link to={`/admin/events/${eventId}/users`}>
+            <Button size="sm" variant="outline" className="bg-background text-amber-700 dark:text-amber-400 border-amber-500/40 hover:bg-amber-500/10 shrink-0 cursor-pointer">
+              Assign Sets in Users
+            </Button>
+          </Link>
+        </div>
+      )}
 
       <Card>
         <CardHeader>

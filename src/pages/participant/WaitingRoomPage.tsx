@@ -57,32 +57,36 @@ export const WaitingRoomPage: React.FC = () => {
               return;
             }
 
-            // Auto-assign them on the fly!
+            if (!user.questionSet || (user.questionSet !== 'A' && user.questionSet !== 'B')) {
+              setError("You have not been assigned to a Question Set (Set A or Set B) by the administrator. Please ask your administrator to assign your set before joining.");
+              setLoading(false);
+              return;
+            }
+
             const qSetsQ = query(collection(db, 'questionSets'), where('quizId', '==', quizId));
             const qSetsSnap = await getDocs(qSetsQ);
 
             let setA_Id = '';
             let setB_Id = '';
-            let fallbackId = '';
 
             qSetsSnap.forEach(d => {
               if (d.data().setName === 'A') setA_Id = d.id;
               if (d.data().setName === 'B') setB_Id = d.id;
-              if (!fallbackId) fallbackId = d.id;
             });
 
-            const userSet = user.questionSet || 'A';
-            let qSetDocId = userSet === 'A' ? setA_Id : setB_Id;
-            if (!qSetDocId) qSetDocId = fallbackId;
+            const userSet = user.questionSet;
+            const qSetDocId = userSet === 'A' ? setA_Id : setB_Id;
 
             if (!qSetDocId) {
-              setError("No question sets found for this quiz.");
+              setError(`Question Set ${userSet} was not found for this quiz.`);
               setLoading(false);
               return;
             }
 
             await setDoc(participantRef, {
               userId: user.uid,
+              userName: user.name,
+              userEmail: user.email,
               quizId: quizId,
               eventId: user.eventId || '',
               questionSetId: userSet,
