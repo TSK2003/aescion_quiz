@@ -110,7 +110,16 @@ export const RegisterPage: React.FC = () => {
 
       navigate('/unauthorized'); // Will show pending approval
     } catch (err: any) {
-      setError(err.message || 'Failed to register');
+      console.error("Registration error:", err);
+      if (err.code === 'auth/email-already-in-use') {
+        setError('This email is already registered in Firebase Authentication. Please log in instead, or delete the account from Firebase Console > Authentication > Users tab.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('Password should be at least 6 characters long.');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Invalid email address format.');
+      } else {
+        setError(err.message || 'Failed to register account.');
+      }
     } finally {
       setIsLoading(false);
     }
